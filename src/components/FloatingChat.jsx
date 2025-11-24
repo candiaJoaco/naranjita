@@ -15,7 +15,7 @@ export default function FloatingChat() {
   const intervalRef = useRef(null);
 
   // 🔑 API KEY DIRECTA (SOLO PARA PRUEBAS)
-  const MISTRAL_API_KEY = "ZCzZctGc8ZKEnTXIUc6zxju7Su7UY3OJ";
+  const MISTRAL_API_KEY = "EcOUUQ6qbOjSLoHoBPJ3wdDLtzS1hU3D";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });

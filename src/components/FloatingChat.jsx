@@ -14,8 +14,8 @@ export default function FloatingChat() {
   const chatEndRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // 🔑 TU KEY AQUÍ (SOLO PARA PRUEBA)
-  const MISTRAL_API_KEY = "7A2UzxyiLlgShrswdPyHwJmIjoQz0veP";
+  // 🔑 API KEY DIRECTA (SOLO PARA PRUEBAS)
+  const MISTRAL_API_KEY = "ZCzZctGc8ZKEnTXIUc6zxju7Su7UY3OJ";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,7 +54,15 @@ export default function FloatingChat() {
   };
 
   // ------------------------------------------------------
-  // 🤖 FUNCIÓN PARA LLAMAR A MISTRAL AI
+  // 🚨 MOSTRAR ERROR DETALLADO EN EL CHAT
+  // ------------------------------------------------------
+  const showError = (title, detail) => {
+    const errorMessage = `⚠️ ¡Ups! Ha ocurrido un error.\n\n${title}\n\nRazón: ${detail}\n\n🍊`;
+    typeWriter(errorMessage);
+  };
+
+  // ------------------------------------------------------
+  // 🤖 LLAMADA A MISTRAL AI CON MANEJO DE ERRORES
   // ------------------------------------------------------
   const getAIResponse = async (userMessage) => {
     try {
@@ -73,35 +81,49 @@ export default function FloatingChat() {
               role: "system",
               content: `
                 Actúa como "Naranjita", asistente de Computer Patrisoft S.A.C.
-                - Sé amable, profesional y experto en planillas/PLAME.
-                - Responde máx. en 3 frases.
+                - Sé amable, experto en planillas/PLAME.
+                - Máximo 3 frases.
                 - Siempre termina con el emoji 🍊.
               `
             },
-            {
-              role: "user",
-              content: userMessage
-            }
+            { role: "user", content: userMessage }
           ]
         })
       });
 
+      // ❗ SI LA RESPUESTA NO ES OK → ERROR HTTP
+      if (!response.ok) {
+        const errorText = `Código HTTP: ${response.status} (${response.statusText})`;
+        showError("El servidor de IA rechazó la solicitud.", errorText);
+        return;
+      }
+
       const data = await response.json();
 
-      const aiText =
-        data?.choices?.[0]?.message?.content ??
-        "Ups... no pude procesar tu consulta. 🍊";
+      // ❗ SI NO VIENE EL MENSAJE ADECUADO
+      if (!data?.choices?.[0]?.message?.content) {
+        showError(
+          "La IA no devolvió un mensaje válido.",
+          "La estructura 'choices[0].message.content' venía vacía."
+        );
+        return;
+      }
 
+      const aiText = data.choices[0].message.content;
       typeWriter(aiText);
 
     } catch (error) {
-      console.error("Error IA:", error);
-      typeWriter("¡Lo siento! No pude conectar con el servidor de IA. 🍊");
+      console.error("ERROR:", error);
+
+      showError(
+        "Error de conexión con la IA.",
+        error?.message ?? "Causa desconocida"
+      );
     }
   };
 
   // ------------------------------------------------------
-  // 📩 Enviar mensaje
+  // 📤 Enviar mensaje
   // ------------------------------------------------------
   const handleSend = () => {
     if (!input.trim()) return;
@@ -118,7 +140,6 @@ export default function FloatingChat() {
   return (
     <div className="floating-container">
 
-      {/* Ventana de chat */}
       {isOpen && (
         <div className="chat-window">
           <div className="chat-header">
@@ -144,7 +165,6 @@ export default function FloatingChat() {
               </div>
             ))}
 
-            {/* Indicador pensado */}
             {messages[messages.length - 1]?.from === "user" && !isSpeaking && (
               <div
                 style={{
@@ -179,7 +199,7 @@ export default function FloatingChat() {
         </div>
       )}
 
-      {/* Botón Naranjita */}
+      {/* Botón flotante */}
       <button className="naranjita-btn" onClick={() => setIsOpen(!isOpen)}>
         <OrangeAssistant isSpeaking={isSpeaking} />
       </button>

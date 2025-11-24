@@ -6,7 +6,7 @@ import "../styles/App.css";
 export default function FloatingChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "¡Hola! Soy Naranjita 🍊. Tu asistente experto en planillas y PLAME. ¿En qué te ayudo?" }
+    { from: "bot", text: "¡Hola! Soy Naranjita 🍊. ¿En qué te ayudo?" }
   ]);
 
   const [input, setInput] = useState("");
@@ -14,71 +14,85 @@ export default function FloatingChat() {
   const chatEndRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // 🔑 CLAVE DE MISTRAL (NO USAR EN PRODUCCIÓN)
+  // 🟧 API Key de Mistral
   const MISTRAL_API_KEY = "UCcNhmjfxXVc1FU6Eijlat1JwtYcpNzd";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isOpen]);
-
-  useEffect(() => {
-    return () => clearInterval(intervalRef.current);
-  }, []);
+  }, [messages]);
 
   // ------------------------------------------------------
-  // 🔊 VOZ GRAVE (Web Speech API)
+  // 🔊 VOZ ESPAÑOL - palabra por palabra
   // ------------------------------------------------------
-  const speak = (text) => {
-    const utter = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
+  const speakWord = (word) => {
+    const utter = new SpeechSynthesisUtterance(word);
 
-    const graveVoice =
-      voices.find(v => v.name.includes("Male")) ||
-      voices.find(v => v.name.includes("Deep")) ||
-      voices.find(v => v.name.includes("Standard B")) ||
+    let voices = window.speechSynthesis.getVoices();
+
+    const spanishVoice =
+      voices.find(v => v.lang.startsWith("es") && v.name.includes("Male")) ||
+      voices.find(v => v.lang.startsWith("es") && v.name.includes("Standard")) ||
+      voices.find(v => v.lang.startsWith("es")) ||
       voices[0];
 
-    utter.voice = graveVoice;
-    utter.pitch = 0.6; // tono grave
-    utter.rate = 1;    // velocidad normal
+    utter.voice = spanishVoice;
+    utter.pitch = 0.7;  // grave
+    utter.rate = 1;
     utter.volume = 1;
 
+    window.speechSynthesis.cancel(); // evita superposición
     window.speechSynthesis.speak(utter);
   };
 
   // ------------------------------------------------------
-  // ✨ EFECTO MÁQUINA DE ESCRIBIR
+  // ✨ MÁQUINA DE ESCRIBIR + voz por palabra
   // ------------------------------------------------------
-  const typeWriter = (text) => {
-    setIsSpeaking(true);
-
+  const typeWriter = (fullText) => {
     let index = 0;
-    setMessages((prev) => [...prev, { from: "bot", text: "" }]);
+    let currentWord = "";
+
+    setIsSpeaking(true);
+    setMessages(prev => [...prev, { from: "bot", text: "" }]);
 
     clearInterval(intervalRef.current);
 
     intervalRef.current = setInterval(() => {
-      setMessages((prev) => {
+      setMessages(prev => {
         const updated = [...prev];
-        const lastMsg = updated[updated.length - 1];
-        lastMsg.text = text.substring(0, index + 1);
+        const last = updated[updated.length - 1];
+
+        const nextChar = fullText[index];
+
+        last.text += nextChar;
+
+        // --- 👇 Detectar fin de palabra ---
+        if (nextChar === " " || nextChar === "." || nextChar === "," || index === fullText.length - 1) {
+          currentWord += nextChar.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, "");
+
+          if (currentWord.trim().length > 0) {
+            speakWord(currentWord);
+          }
+
+          currentWord = "";
+        } else {
+          currentWord += nextChar;
+        }
+
         return updated;
       });
 
       index++;
 
-      if (index >= text.length) {
+      if (index >= fullText.length) {
         clearInterval(intervalRef.current);
         setIsSpeaking(false);
-
-        // 🔊 VOZ GRAVE AL TERMINAR DE ESCRIBIR
-        speak(text);
       }
-    }, 30);
+
+    }, 40);
   };
 
   // ------------------------------------------------------
-  // 🤖 MISTRAL AI
+  // 🤖 Llamada a Mistral AI
   // ------------------------------------------------------
   const getAIResponse = async (userMessage) => {
     try {
@@ -96,10 +110,9 @@ export default function FloatingChat() {
             {
               role: "system",
               content: `
-                Actúa como "Naranjita", el asistente de Computer Patrisoft S.A.C.
-                - Sé amable, profesional y experto en planillas, RRHH y PLAME.
-                - Responde en máximo 3 frases.
-                - Termina siempre con el emoji 🍊.
+                Eres Naranjita, asistente de Computer Patrisoft S.A.C.
+                Responde en español, de manera clara y amable.
+                Máximo 3 frases. Termina con 🍊.
               `
             },
             { role: "user", content: userMessage }
@@ -110,13 +123,13 @@ export default function FloatingChat() {
       const data = await response.json();
       const aiText =
         data?.choices?.[0]?.message?.content ??
-        "Ups... no pude procesar tu consulta. 🍊";
+        "Hubo un error, lo siento. 🍊";
 
       typeWriter(aiText);
 
-    } catch (error) {
-      console.error("Error IA:", error);
-      typeWriter("Lo siento, hubo un problema conectando con la IA. 🍊");
+    } catch (err) {
+      console.error(err);
+      typeWriter("No pude conectar con la IA. 🍊");
     }
   };
 
@@ -127,11 +140,10 @@ export default function FloatingChat() {
     if (!input.trim()) return;
     if (isSpeaking) return;
 
-    setMessages((prev) => [...prev, { from: "user", text: input }]);
+    setMessages(prev => [...prev, { from: "user", text: input }]);
+
     const userMessage = input;
     setInput("");
-
-    setIsSpeaking(false);
     getAIResponse(userMessage);
   };
 
@@ -139,9 +151,9 @@ export default function FloatingChat() {
     <div className="floating-container">
       {isOpen && (
         <div className="chat-window">
-          <div className="chat-header">
-            <span style={{ fontWeight: "600" }}>Asistente Naranjita</span>
 
+          <div className="chat-header">
+            <b>Naranjita – Asistente</b>
             <button
               onClick={() => setIsOpen(false)}
               style={{
@@ -164,29 +176,26 @@ export default function FloatingChat() {
             ))}
 
             {messages[messages.length - 1]?.from === "user" && !isSpeaking && (
-              <div
-                style={{
-                  fontSize: "0.8rem",
-                  color: "#888",
-                  marginLeft: "10px",
-                  marginBottom: "10px",
-                  fontStyle: "italic"
-                }}
-              >
+              <div style={{
+                fontSize: "0.8rem",
+                color: "#888",
+                marginLeft: "10px",
+                fontStyle: "italic"
+              }}>
                 Naranjita está pensando...
               </div>
             )}
 
-            <div ref={chatEndRef} />
+            <div ref={chatEndRef}></div>
           </div>
 
           <div className="chat-input-area">
             <input
               className="chat-input"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Pregunta sobre planillas..."
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSend()}
+              placeholder="Escribe tu consulta..."
               disabled={isSpeaking}
             />
 
@@ -197,7 +206,7 @@ export default function FloatingChat() {
         </div>
       )}
 
-      {/* Botón flotante */}
+      {/* Naranjita flotante */}
       <button className="naranjita-btn" onClick={() => setIsOpen(!isOpen)}>
         <OrangeAssistant isSpeaking={isSpeaking} />
       </button>

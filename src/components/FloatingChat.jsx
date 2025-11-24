@@ -14,7 +14,7 @@ export default function FloatingChat() {
   const chatEndRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // 🔑 TU KEY AQUÍ (SOLO PARA PRUEBA)
+  // 🔑 CLAVE DE MISTRAL (NO USAR EN PRODUCCIÓN)
   const MISTRAL_API_KEY = "UCcNhmjfxXVc1FU6Eijlat1JwtYcpNzd";
 
   useEffect(() => {
@@ -24,6 +24,27 @@ export default function FloatingChat() {
   useEffect(() => {
     return () => clearInterval(intervalRef.current);
   }, []);
+
+  // ------------------------------------------------------
+  // 🔊 VOZ GRAVE (Web Speech API)
+  // ------------------------------------------------------
+  const speak = (text) => {
+    const utter = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+
+    const graveVoice =
+      voices.find(v => v.name.includes("Male")) ||
+      voices.find(v => v.name.includes("Deep")) ||
+      voices.find(v => v.name.includes("Standard B")) ||
+      voices[0];
+
+    utter.voice = graveVoice;
+    utter.pitch = 0.6; // tono grave
+    utter.rate = 1;    // velocidad normal
+    utter.volume = 1;
+
+    window.speechSynthesis.speak(utter);
+  };
 
   // ------------------------------------------------------
   // ✨ EFECTO MÁQUINA DE ESCRIBIR
@@ -49,12 +70,15 @@ export default function FloatingChat() {
       if (index >= text.length) {
         clearInterval(intervalRef.current);
         setIsSpeaking(false);
+
+        // 🔊 VOZ GRAVE AL TERMINAR DE ESCRIBIR
+        speak(text);
       }
     }, 30);
   };
 
   // ------------------------------------------------------
-  // 🤖 FUNCIÓN PARA LLAMAR A MISTRAL AI
+  // 🤖 MISTRAL AI
   // ------------------------------------------------------
   const getAIResponse = async (userMessage) => {
     try {
@@ -72,22 +96,18 @@ export default function FloatingChat() {
             {
               role: "system",
               content: `
-                Actúa como "Naranjita", asistente de Computer Patrisoft S.A.C.
-                - Sé amable, profesional y experto en planillas/PLAME.
-                - Responde máx. en 3 frases.
-                - Siempre termina con el emoji 🍊.
+                Actúa como "Naranjita", el asistente de Computer Patrisoft S.A.C.
+                - Sé amable, profesional y experto en planillas, RRHH y PLAME.
+                - Responde en máximo 3 frases.
+                - Termina siempre con el emoji 🍊.
               `
             },
-            {
-              role: "user",
-              content: userMessage
-            }
+            { role: "user", content: userMessage }
           ]
         })
       });
 
       const data = await response.json();
-
       const aiText =
         data?.choices?.[0]?.message?.content ??
         "Ups... no pude procesar tu consulta. 🍊";
@@ -96,7 +116,7 @@ export default function FloatingChat() {
 
     } catch (error) {
       console.error("Error IA:", error);
-      typeWriter("¡Lo siento! No pude conectar con el servidor de IA. 🍊");
+      typeWriter("Lo siento, hubo un problema conectando con la IA. 🍊");
     }
   };
 
@@ -117,12 +137,11 @@ export default function FloatingChat() {
 
   return (
     <div className="floating-container">
-
-      {/* Ventana de chat */}
       {isOpen && (
         <div className="chat-window">
           <div className="chat-header">
             <span style={{ fontWeight: "600" }}>Asistente Naranjita</span>
+
             <button
               onClick={() => setIsOpen(false)}
               style={{
@@ -144,7 +163,6 @@ export default function FloatingChat() {
               </div>
             ))}
 
-            {/* Indicador pensado */}
             {messages[messages.length - 1]?.from === "user" && !isSpeaking && (
               <div
                 style={{
@@ -179,7 +197,7 @@ export default function FloatingChat() {
         </div>
       )}
 
-      {/* Botón Naranjita */}
+      {/* Botón flotante */}
       <button className="naranjita-btn" onClick={() => setIsOpen(!isOpen)}>
         <OrangeAssistant isSpeaking={isSpeaking} />
       </button>

@@ -6,7 +6,7 @@ import "../styles/App.css";
 export default function FloatingChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "¡Hola! Soy Naranjita 🍊. ¿En qué te ayudo hoy?" }
+    { from: "bot", text: "¡Hola! Soy Naranjita 🍊, tu asistente en Planillas y PLAME. ¿En qué te ayudo?" }
   ]);
 
   const [input, setInput] = useState("");
@@ -15,162 +15,138 @@ export default function FloatingChat() {
   const chatEndRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // ------------------------------
-  // 🔑 API KEY
-  // ------------------------------
-  const MISTRAL_API_KEY = "UCcNhmjfxXVc1FU6Eijlat1JwtYcpNzd";
+  // ----------------------------------------------------------
+  // ⚠️ 👉 AQUÍ COLOCAS TU INFORMACIÓN DE AZURE
+  // ----------------------------------------------------------
+  const AZURE_API_KEY = "B6kjnA8rgq8BSdarz0JfGBYbuxefsXfWfHpf6c6x0FOBpqyid0NxJQQJ99BKACHYHv6XJ3w3AAAAACOGAkEO";
+  const AZURE_ENDPOINT = "https://openai-naranjita.openai.azure.com/"; 
+  const DEPLOYMENT_NAME = "gpt-4o-mini";     // o el nombre que pusiste en Azure
+  const API_VERSION = "2024-02-01";          // versión estable
 
+  // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
-  // ---------------------------------------------------------
-  // 🔊 FUNCIÓN DE VOZ EN ESPAÑOL (HABLA MIENTRAS GENERA)
-  // ---------------------------------------------------------
-  const speakChunk = (chunk) => {
-    if (!chunk.trim()) return;
+  // Limpieza de intervalos
+  useEffect(() => {
+    return () => clearInterval(intervalRef.current);
+  }, []);
 
-    const utter = new SpeechSynthesisUtterance(chunk);
-
-    let voices = window.speechSynthesis.getVoices();
-    if (!voices.length) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        voices = window.speechSynthesis.getVoices();
-      };
-    }
-
-    const spanishVoice =
-      voices.find(v => v.lang.startsWith("es") && v.name.includes("Male")) ||
-      voices.find(v => v.lang.startsWith("es") && v.name.includes("Standard")) ||
-      voices.find(v => v.lang.startsWith("es")) ||
-      voices[0];
-
-    utter.voice = spanishVoice;
-    utter.pitch = 0.65;  // voz grave
-    utter.rate = 1.0;
-    utter.volume = 1;
-
-    window.speechSynthesis.speak(utter);
-  };
-
-  // ---------------------------------------------------------
-  // ✨ EFECTO MÁQUINA DE ESCRIBIR + AUDIO EN VIVO
-  // ---------------------------------------------------------
-  const typeWriter = (fullText) => {
+  // ----------------------------------------------------------
+  // ✨ EFECTO MÁQUINA DE ESCRIBIR
+  // ----------------------------------------------------------
+  const typeWriter = (text) => {
     setIsSpeaking(true);
 
     let index = 0;
-    let voiceBuffer = "";
-
-    setMessages(prev => [...prev, { from: "bot", text: "" }]);
+    setMessages((prev) => [...prev, { from: "bot", text: "" }]);
 
     clearInterval(intervalRef.current);
 
     intervalRef.current = setInterval(() => {
-      index++;
+      setMessages((prev) => {
+        const updated = [...prev];
+        const lastMsg = updated[updated.length - 1];
 
-      // actualizar el texto visible
-      setMessages(prev => {
-        const msgs = [...prev];
-        msgs[msgs.length - 1].text = fullText.substring(0, index);
-        return msgs;
+        lastMsg.text = text.substring(0, index + 1);
+        return updated;
       });
 
-      // capturar letra para hablar
-      const newChar = fullText[index - 1];
-      voiceBuffer += newChar;
+      index++;
 
-      // HABLAR cada 8–12 caracteres o al final de una palabra
-      if (voiceBuffer.length >= 10 && newChar === " ") {
-        speakChunk(voiceBuffer);
-        voiceBuffer = "";
-      }
-
-      // cuando termina
-      if (index >= fullText.length) {
+      if (index >= text.length) {
         clearInterval(intervalRef.current);
         setIsSpeaking(false);
-
-        // hablar cualquier fragmento pendiente
-        if (voiceBuffer.trim().length > 0) {
-          speakChunk(voiceBuffer);
-        }
       }
-
-    }, 35); // velocidad de escritura
+    }, 30);
   };
 
-  // ---------------------------------------------------------
-  // 🤖 MISTRAL AI
-  // ---------------------------------------------------------
+  // ----------------------------------------------------------
+  // 🤖 FUNCIÓN: LLAMAR A AZURE OPENAI
+  // ----------------------------------------------------------
   const getAIResponse = async (userMessage) => {
     try {
       setIsSpeaking(false);
 
-      const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      const url = `${AZURE_ENDPOINT}/openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=${API_VERSION}`;
+
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${MISTRAL_API_KEY}`,
+          "api-key": AZURE_API_KEY
         },
         body: JSON.stringify({
-          model: "mistral-small-latest",
           messages: [
             {
               role: "system",
               content: `
-                Eres "Naranjita", asistente oficial de Computer Patrisoft.
-                Respondes SIEMPRE en español.
-                Eres amable, profesional y experto en Planillas, RRHH y PLAME.
-                Máximo 3 frases. Termina con 🍊.
+                Eres "Naranjita", asistente virtual de Computer Patrisoft S.A.C.
+                - Sé amable y profesional.
+                - Responde en máximo 3 frases.
+                - Siempre termina con el emoji 🍊.
               `
             },
-            { role: "user", content: userMessage }
+            {
+              role: "user",
+              content: userMessage
+            }
           ]
         })
       });
 
       const data = await response.json();
-      const aiText = data?.choices?.[0]?.message?.content ?? "Error en el servidor 🍊";
+
+      const aiText =
+        data?.choices?.[0]?.message?.content ??
+        "Lo siento, no pude procesar tu mensaje. 🍊";
 
       typeWriter(aiText);
 
     } catch (error) {
-      console.error("Error IA:", error);
-      typeWriter("Lo siento, tuve problemas para conectar con la IA. 🍊");
+      console.error("Error Azure:", error);
+      typeWriter("Ups… hubo un error al conectar con Azure OpenAI. 🍊");
     }
   };
 
-  // ---------------------------------------------------------
-  // 📩 Enviar Mensaje
-  // ---------------------------------------------------------
+  // ----------------------------------------------------------
+  // 📨 ENVIAR MENSAJE
+  // ----------------------------------------------------------
   const handleSend = () => {
     if (!input.trim()) return;
     if (isSpeaking) return;
 
-    setMessages(prev => [...prev, { from: "user", text: input }]);
-    const msg = input;
+    setMessages((prev) => [...prev, { from: "user", text: input }]);
+
+    const userMessage = input;
     setInput("");
-    getAIResponse(msg);
+
+    getAIResponse(userMessage);
   };
 
   return (
     <div className="floating-container">
+
+      {/* Ventana de chat */}
       {isOpen && (
         <div className="chat-window">
-
-          {/* HEADER */}
           <div className="chat-header">
             <span style={{ fontWeight: "600" }}>Asistente Naranjita</span>
             <button
               onClick={() => setIsOpen(false)}
-              style={{ background: "none", border: "none", color: "white", cursor: "pointer", fontSize: "1.2rem" }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "1.2rem"
+              }}
             >
               ✕
             </button>
           </div>
 
-          {/* CUERPO DEL CHAT */}
           <div className="chat-body">
             {messages.map((m, i) => (
               <div key={i} className={`bubble ${m.from}`}>
@@ -178,6 +154,7 @@ export default function FloatingChat() {
               </div>
             ))}
 
+            {/* Pensando… */}
             {messages[messages.length - 1]?.from === "user" && !isSpeaking && (
               <div
                 style={{
@@ -195,7 +172,7 @@ export default function FloatingChat() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* INPUT */}
+          {/* Área de input */}
           <div className="chat-input-area">
             <input
               className="chat-input"
@@ -206,15 +183,18 @@ export default function FloatingChat() {
               disabled={isSpeaking}
             />
 
-            <button className="btn-primary" onClick={handleSend} disabled={isSpeaking}>
+            <button
+              className="btn-primary"
+              onClick={handleSend}
+              disabled={isSpeaking}
+            >
               ➤
             </button>
           </div>
-
         </div>
       )}
 
-      {/* BOTÓN FLOTANTE */}
+      {/* Botón flotante */}
       <button className="naranjita-btn" onClick={() => setIsOpen(!isOpen)}>
         <OrangeAssistant isSpeaking={isSpeaking} />
       </button>

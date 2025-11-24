@@ -6,93 +6,100 @@ import "../styles/App.css";
 export default function FloatingChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "¡Hola! Soy Naranjita 🍊. ¿En qué te ayudo?" }
+    { from: "bot", text: "¡Hola! Soy Naranjita 🍊. Tu asistente experto en planillas y PLAME. ¿En qué te ayudo?" }
   ]);
 
   const [input, setInput] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+
   const chatEndRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // 🟧 API Key de Mistral
+  // API KEY
   const MISTRAL_API_KEY = "UCcNhmjfxXVc1FU6Eijlat1JwtYcpNzd";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isOpen]);
 
   // ------------------------------------------------------
-  // 🔊 VOZ ESPAÑOL - palabra por palabra
+  // 🔊 VOZ GRAVE EN ESPAÑOL (con reproducción incremental)
   // ------------------------------------------------------
-  const speakWord = (word) => {
-    const utter = new SpeechSynthesisUtterance(word);
+  const speakChunk = (textChunk) => {
+    if (!textChunk.trim()) return;
+
+    const utter = new SpeechSynthesisUtterance(textChunk);
 
     let voices = window.speechSynthesis.getVoices();
+    if (!voices.length) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        voices = window.speechSynthesis.getVoices();
+      };
+    }
 
-    const spanishVoice =
+    const voiceEs =
       voices.find(v => v.lang.startsWith("es") && v.name.includes("Male")) ||
       voices.find(v => v.lang.startsWith("es") && v.name.includes("Standard")) ||
+      voices.find(v => v.lang.startsWith("es") && v.name.includes("Deep")) ||
       voices.find(v => v.lang.startsWith("es")) ||
       voices[0];
 
-    utter.voice = spanishVoice;
-    utter.pitch = 0.7;  // grave
+    utter.voice = voiceEs;
+    utter.pitch = 0.6;
     utter.rate = 1;
     utter.volume = 1;
 
-    window.speechSynthesis.cancel(); // evita superposición
     window.speechSynthesis.speak(utter);
   };
 
   // ------------------------------------------------------
-  // ✨ MÁQUINA DE ESCRIBIR + voz por palabra
+  // ✨ EFECTO MÁQUINA DE ESCRIBIR + AUDIO EN TIEMPO REAL
   // ------------------------------------------------------
   const typeWriter = (fullText) => {
-    let index = 0;
-    let currentWord = "";
-
     setIsSpeaking(true);
+
+    let index = 0;
+    let audioBuffer = ""; // contiene texto aún no hablado
+
     setMessages(prev => [...prev, { from: "bot", text: "" }]);
 
     clearInterval(intervalRef.current);
 
     intervalRef.current = setInterval(() => {
+      index++;
+
       setMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-
-        const nextChar = fullText[index];
-
-        last.text += nextChar;
-
-        // --- 👇 Detectar fin de palabra ---
-        if (nextChar === " " || nextChar === "." || nextChar === "," || index === fullText.length - 1) {
-          currentWord += nextChar.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, "");
-
-          if (currentWord.trim().length > 0) {
-            speakWord(currentWord);
-          }
-
-          currentWord = "";
-        } else {
-          currentWord += nextChar;
-        }
-
-        return updated;
+        const msgs = [...prev];
+        const last = msgs[msgs.length - 1];
+        last.text = fullText.substring(0, index);
+        return msgs;
       });
 
-      index++;
+      // añadir fragmento al buffer
+      const newChar = fullText[index - 1];
+      audioBuffer += newChar;
+
+      // hablar cada 10 caracteres
+      if (audioBuffer.length >= 10 && newChar === " ") {
+        speakChunk(audioBuffer);
+        audioBuffer = "";
+      }
 
       if (index >= fullText.length) {
         clearInterval(intervalRef.current);
         setIsSpeaking(false);
+
+        // hablar lo último que queda pendiente
+        if (audioBuffer.trim().length > 0) {
+          speakChunk(audioBuffer);
+        }
       }
 
-    }, 40);
+    }, 35);
   };
 
   // ------------------------------------------------------
-  // 🤖 Llamada a Mistral AI
+  // 🤖 PETICIÓN A MISTRAL AI
   // ------------------------------------------------------
   const getAIResponse = async (userMessage) => {
     try {
@@ -110,8 +117,9 @@ export default function FloatingChat() {
             {
               role: "system",
               content: `
-                Eres Naranjita, asistente de Computer Patrisoft S.A.C.
-                Responde en español, de manera clara y amable.
+                Actúa como "Naranjita", asistente de Computer Patrisoft S.A.C.
+                Responde SIEMPRE en español.
+                Sé amable, profesional y experto en planillas/PLAME.
                 Máximo 3 frases. Termina con 🍊.
               `
             },
@@ -121,39 +129,37 @@ export default function FloatingChat() {
       });
 
       const data = await response.json();
-      const aiText =
-        data?.choices?.[0]?.message?.content ??
-        "Hubo un error, lo siento. 🍊";
+      const aiText = data?.choices?.[0]?.message?.content ?? "Hubo un error 🍊";
 
       typeWriter(aiText);
 
     } catch (err) {
-      console.error(err);
-      typeWriter("No pude conectar con la IA. 🍊");
+      console.error("Error IA:", err);
+      typeWriter("Lo siento, hubo un error con la IA. 🍊");
     }
   };
 
   // ------------------------------------------------------
-  // 📩 Enviar mensaje
+  // 📩 ENVIAR MENSAJE
   // ------------------------------------------------------
   const handleSend = () => {
     if (!input.trim()) return;
     if (isSpeaking) return;
 
     setMessages(prev => [...prev, { from: "user", text: input }]);
-
-    const userMessage = input;
+    const msg = input;
     setInput("");
-    getAIResponse(userMessage);
+
+    getAIResponse(msg);
   };
 
   return (
     <div className="floating-container">
       {isOpen && (
         <div className="chat-window">
-
+          
           <div className="chat-header">
-            <b>Naranjita – Asistente</b>
+            <span style={{ fontWeight: "600" }}>Asistente Naranjita</span>
             <button
               onClick={() => setIsOpen(false)}
               style={{
@@ -168,6 +174,7 @@ export default function FloatingChat() {
             </button>
           </div>
 
+          {/* CHAT BODY */}
           <div className="chat-body">
             {messages.map((m, i) => (
               <div key={i} className={`bubble ${m.from}`}>
@@ -176,26 +183,30 @@ export default function FloatingChat() {
             ))}
 
             {messages[messages.length - 1]?.from === "user" && !isSpeaking && (
-              <div style={{
-                fontSize: "0.8rem",
-                color: "#888",
-                marginLeft: "10px",
-                fontStyle: "italic"
-              }}>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#888",
+                  marginLeft: "10px",
+                  marginBottom: "10px",
+                  fontStyle: "italic"
+                }}
+              >
                 Naranjita está pensando...
               </div>
             )}
 
-            <div ref={chatEndRef}></div>
+            <div ref={chatEndRef} />
           </div>
 
+          {/* INPUT */}
           <div className="chat-input-area">
             <input
               className="chat-input"
               value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSend()}
-              placeholder="Escribe tu consulta..."
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              placeholder="Pregunta sobre planillas..."
               disabled={isSpeaking}
             />
 
@@ -203,10 +214,11 @@ export default function FloatingChat() {
               ➤
             </button>
           </div>
+
         </div>
       )}
 
-      {/* Naranjita flotante */}
+      {/* Naranjita */}
       <button className="naranjita-btn" onClick={() => setIsOpen(!isOpen)}>
         <OrangeAssistant isSpeaking={isSpeaking} />
       </button>

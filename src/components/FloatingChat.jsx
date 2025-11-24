@@ -6,36 +6,28 @@ import "../styles/App.css";
 export default function FloatingChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "¡Hola! Soy Naranjita 🍊, tu asistente en Planillas y PLAME. ¿En qué te ayudo?" }
+    { from: "bot", text: "¡Hola! Soy Naranjita 🍊. Tu asistente experto en planillas y PLAME. ¿En qué te ayudo?" }
   ]);
 
   const [input, setInput] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
-
   const chatEndRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // ----------------------------------------------------------
-  // ⚠️ 👉 AQUÍ COLOCAS TU INFORMACIÓN DE AZURE
-  // ----------------------------------------------------------
-  const AZURE_API_KEY = "B6kjnA8rgq8BSdarz0JfGBYbuxefsXfWfHpf6c6x0FOBpqyid0NxJQQJ99BKACHYHv6XJ3w3AAAAACOGAkEO";
-  const AZURE_ENDPOINT = "https://openai-naranjita.openai.azure.com/"; 
-  const DEPLOYMENT_NAME = "gpt-4o-mini";     // o el nombre que pusiste en Azure
-  const API_VERSION = "2024-02-01";          // versión estable
+  // 🔑 TU KEY AQUÍ (SOLO PARA PRUEBA)
+  const MISTRAL_API_KEY = "UCcNhmjfxXVc1FU6Eijlat1JwtYcpNzd";
 
-  // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
-  // Limpieza de intervalos
   useEffect(() => {
     return () => clearInterval(intervalRef.current);
   }, []);
 
-  // ----------------------------------------------------------
+  // ------------------------------------------------------
   // ✨ EFECTO MÁQUINA DE ESCRIBIR
-  // ----------------------------------------------------------
+  // ------------------------------------------------------
   const typeWriter = (text) => {
     setIsSpeaking(true);
 
@@ -48,7 +40,6 @@ export default function FloatingChat() {
       setMessages((prev) => {
         const updated = [...prev];
         const lastMsg = updated[updated.length - 1];
-
         lastMsg.text = text.substring(0, index + 1);
         return updated;
       });
@@ -62,29 +53,28 @@ export default function FloatingChat() {
     }, 30);
   };
 
-  // ----------------------------------------------------------
-  // 🤖 FUNCIÓN: LLAMAR A AZURE OPENAI
-  // ----------------------------------------------------------
+  // ------------------------------------------------------
+  // 🤖 FUNCIÓN PARA LLAMAR A MISTRAL AI
+  // ------------------------------------------------------
   const getAIResponse = async (userMessage) => {
     try {
       setIsSpeaking(false);
 
-      const url = `${AZURE_ENDPOINT}/openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=${API_VERSION}`;
-
-      const response = await fetch(url, {
+      const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "api-key": AZURE_API_KEY
+          Authorization: `Bearer ${MISTRAL_API_KEY}`,
         },
         body: JSON.stringify({
+          model: "mistral-small-latest",
           messages: [
             {
               role: "system",
               content: `
-                Eres "Naranjita", asistente virtual de Computer Patrisoft S.A.C.
-                - Sé amable y profesional.
-                - Responde en máximo 3 frases.
+                Actúa como "Naranjita", asistente de Computer Patrisoft S.A.C.
+                - Sé amable, profesional y experto en planillas/PLAME.
+                - Responde máx. en 3 frases.
                 - Siempre termina con el emoji 🍊.
               `
             },
@@ -100,28 +90,28 @@ export default function FloatingChat() {
 
       const aiText =
         data?.choices?.[0]?.message?.content ??
-        "Lo siento, no pude procesar tu mensaje. 🍊";
+        "Ups... no pude procesar tu consulta. 🍊";
 
       typeWriter(aiText);
 
     } catch (error) {
-      console.error("Error Azure:", error);
-      typeWriter("Ups… hubo un error al conectar con Azure OpenAI. 🍊");
+      console.error("Error IA:", error);
+      typeWriter("¡Lo siento! No pude conectar con el servidor de IA. 🍊");
     }
   };
 
-  // ----------------------------------------------------------
-  // 📨 ENVIAR MENSAJE
-  // ----------------------------------------------------------
+  // ------------------------------------------------------
+  // 📩 Enviar mensaje
+  // ------------------------------------------------------
   const handleSend = () => {
     if (!input.trim()) return;
     if (isSpeaking) return;
 
     setMessages((prev) => [...prev, { from: "user", text: input }]);
-
     const userMessage = input;
     setInput("");
 
+    setIsSpeaking(false);
     getAIResponse(userMessage);
   };
 
@@ -154,7 +144,7 @@ export default function FloatingChat() {
               </div>
             ))}
 
-            {/* Pensando… */}
+            {/* Indicador pensado */}
             {messages[messages.length - 1]?.from === "user" && !isSpeaking && (
               <div
                 style={{
@@ -172,7 +162,6 @@ export default function FloatingChat() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Área de input */}
           <div className="chat-input-area">
             <input
               className="chat-input"
@@ -183,18 +172,14 @@ export default function FloatingChat() {
               disabled={isSpeaking}
             />
 
-            <button
-              className="btn-primary"
-              onClick={handleSend}
-              disabled={isSpeaking}
-            >
+            <button className="btn-primary" onClick={handleSend} disabled={isSpeaking}>
               ➤
             </button>
           </div>
         </div>
       )}
 
-      {/* Botón flotante */}
+      {/* Botón Naranjita */}
       <button className="naranjita-btn" onClick={() => setIsOpen(!isOpen)}>
         <OrangeAssistant isSpeaking={isSpeaking} />
       </button>
